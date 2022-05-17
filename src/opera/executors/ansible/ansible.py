@@ -19,6 +19,11 @@ def _get_inventory(host):
     if host == "localhost":
         inventory["ansible_connection"] = "local"
         inventory["ansible_python_interpreter"] = sys.executable
+
+        # XXX: this is needed to access VMs while creating them
+        opera_ssh_identity_file = os.environ.get("OPERA_SSH_IDENTITY_FILE")
+        if opera_ssh_identity_file is not None:
+            inventory["opera_ssh_private_key_file"] = opera_ssh_identity_file
     else:
         inventory["ansible_user"] = os.environ.get("OPERA_SSH_USER", "centos")
         opera_ssh_identity_file = os.environ.get("OPERA_SSH_IDENTITY_FILE")
