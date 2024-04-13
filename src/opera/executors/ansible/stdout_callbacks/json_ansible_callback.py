@@ -42,6 +42,12 @@ class CallbackModule(CallbackBase):
         # pylint: disable=protected-access
         self.tasks[task._uuid] = task.name
 
+    def v2_runner_on_failed(self, result, ignore_errors=False):
+        if ignore_errors:
+            return
+
+        self._display.display(json.dumps(result._result, cls=AnsibleJSONEncoder, indent=2, sort_keys=True))
+
     def v2_playbook_on_stats(self, stats):
         custom_stats = {k.get_name() if isinstance(k, (Host,)) else k: v for k, v in stats.custom.items()}
 

@@ -2,6 +2,7 @@ from typing import Optional
 from pathlib import Path
 
 from opera_tosca_parser.parser.tosca.v_1_3.template.node import Node as Template
+from opera_tosca_parser.parser.tosca.v_1_3.template.policy import Policy
 from opera_tosca_parser.parser.tosca.v_1_3.template.trigger import Trigger
 
 from opera.constants import StandardInterfaceOperation, ConfigureInterfaceOperation, NodeState, OperationHost
@@ -91,7 +92,7 @@ class Node(Base):  # pylint: disable=too-many-public-methods
                                            target_operation, verbose, workdir, validate)
 
     def validate(self, verbose, workdir):
-        thread_utils.print_thread(f"  Validating {self.tosca_id}")
+        thread_utils.print_thread(f"\tValidating {self.tosca_id}")
 
         # validate node's deployment
         self.run_operation(OperationHost.HOST, StandardInterfaceOperation.shorthand_name(),
@@ -115,10 +116,10 @@ class Node(Base):  # pylint: disable=too-many-public-methods
         self.write()
 
         self.validated = True
-        thread_utils.print_thread(f"  Validation of {self.tosca_id} complete")
+        thread_utils.print_thread(f"\tValidation of {self.tosca_id} complete")
 
     def deploy(self, verbose, workdir):
-        thread_utils.print_thread(f"  Deploying {self.tosca_id}")
+        thread_utils.print_thread(f"\tDeploying {self.tosca_id}")
 
         self.set_state(NodeState.CREATING)
         self.run_operation(OperationHost.HOST, StandardInterfaceOperation.shorthand_name(),
@@ -146,10 +147,10 @@ class Node(Base):  # pylint: disable=too-many-public-methods
         self.set_state(NodeState.STARTED)
 
         # TODO: Execute various add hooks
-        thread_utils.print_thread(f"  Deployment of {self.tosca_id} complete")
+        thread_utils.print_thread(f"\tDeployment of {self.tosca_id} complete")
 
     def undeploy(self, verbose, workdir):
-        thread_utils.print_thread(f"  Undeploying {self.tosca_id}")
+        thread_utils.print_thread(f"\tUndeploying {self.tosca_id}")
 
         self.set_state(NodeState.STOPPING)
         self.run_operation(OperationHost.HOST, StandardInterfaceOperation.shorthand_name(),
@@ -166,11 +167,11 @@ class Node(Base):  # pylint: disable=too-many-public-methods
         self.reset_attributes()
         self.write()
 
-        thread_utils.print_thread(f"  Undeployment of {self.tosca_id} complete")
+        thread_utils.print_thread(f"\tUndeployment of {self.tosca_id} complete")
 
-    def invoke_trigger(self, verbose: bool, workdir: str, trigger: Trigger,
+    def invoke_trigger(self, verbose: bool, workdir: str, policy: Policy, trigger: Trigger,
                        notification_file_contents: Optional[str]):
-        for interface_name, operation_name, _ in trigger.action:
+        for interface_name, operation_name, _, extra_inputs in trigger.action:
             # get node's interface and interface operations that are referenced in a trigger action
             interface = self.template.interfaces.get(interface_name, None)
             operation = interface.operations.get(operation_name, None) if interface else None
@@ -187,31 +188,36 @@ class Node(Base):  # pylint: disable=too-many-public-methods
                     notification_value = Value(None, True, notification_file_contents)
                     operation.inputs.update({"notification": notification_value})
 
+                # thread_utils.print_thread(f"  Notifying {self.tosca_id}, extra = {extra_inputs}")
+                operation.inputs.update(extra_inputs)
+
                 self.run_operation(OperationHost.HOST, interface_name, operation_name, verbose, workdir)
 
     def notify(self, verbose: bool, workdir: str, trigger_name_or_event: Optional[str],
                notification_file_contents: Optional[str]):
-        thread_utils.print_thread(f"  Notifying {self.tosca_id}")
+        thread_utils.print_thread(f"\tNotifying {self.tosca_id}")
 
         for policy in self.template.policies:
             for trigger_name, trigger in policy.triggers.items():
                 # break here if trigger is not targeting this node
                 if trigger.target_filter and trigger.target_filter[0] != self.template.name:
+                    # thread_utils.print_thread(f" {self.tosca_id} break? {trigger.target_filter} {self.template.name}")
                     break
 
                 invoke_trigger = True
                 if trigger_name_or_event is not None and trigger_name_or_event not in (trigger_name,
                                                                                        trigger.event.data):
+                    # thread_utils.print_thread(f" {self.tosca_id} invoke trigger = false?")
                     invoke_trigger = False
 
                 # invoke the chosen trigger only if it contains any actions
                 if invoke_trigger and trigger.action:
-                    thread_utils.print_thread(f"   Calling trigger {trigger_name} with event {trigger.event}")
-                    self.invoke_trigger(verbose, workdir, trigger, notification_file_contents)
-                    thread_utils.print_thread(f"   Calling trigger actions with event {trigger.event} complete")
+                    thread_utils.print_thread(f"\t{self.tosca_id}: Calling trigger {trigger_name} with event {trigger.event}")
+                    self.invoke_trigger(verbose, workdir, policy, trigger, notification_file_contents)
+                    thread_utils.print_thread(f"\t{self.tosca_id}: Calling trigger actions with event {trigger.event} complete")
 
         self.notified = True
-        thread_utils.print_thread(f"  Notification on {self.tosca_id} complete")
+        thread_utils.print_thread(f"\tNotification on {self.tosca_id} complete")
 
     @staticmethod
     def instantiate(template: Template, topology):

@@ -122,6 +122,8 @@ class Base:
         # TODO: Properly handle SELF - not even sure what this proper way would be at this time.
         actual_host = self.get_host(operation.host or host)
 
+        # for k, v in operation.inputs.items():
+        #     thread_utils.print_thread(f"    Inputs {operation.name} on {self.tosca_id}: {k}, {v}")
         operation_inputs = {k: v.eval(self, k) for k, v in operation.inputs.items()}
 
         # TODO: Currently when primary is None we skip running the operation. Fix this if needed.
@@ -129,7 +131,7 @@ class Base:
             return True, {}, {}
 
         # TODO: We print output only when primary is defined so we can run something. Fix this if needed.
-        thread_utils.print_thread(f"    Executing {operation.name} on {self.tosca_id}")
+        thread_utils.print_thread(f"\tExecuting {operation.name} on {self.tosca_id}")
 
         # TODO: Generalize executors.
         success, ansible_outputs = ansible.run(

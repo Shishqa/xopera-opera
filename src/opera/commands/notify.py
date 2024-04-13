@@ -24,6 +24,10 @@ def add_parser(subparsers):
         help="Storage folder location (instead of default .opera)"
     )
     parser.add_argument(
+        "--workers", "-w", type=int, default=1,
+        help="Maximum number of concurrent deployment threads (positive number, default 1)"
+    )
+    parser.add_argument(
         "--trigger", "-t", "--event", "-e", metavar="TRIGGER_OR_EVENT", required=True,
         help="TOSCA policy trigger name or event that will invoke all the actions (interface operations) on policy",
     )
@@ -80,7 +84,7 @@ def _parser_callback(args):
     notification_file_contents = Path(args.notification.name).read_text(encoding="utf-8") if args.notification else None
 
     try:
-        notify(storage, args.verbose, args.trigger, notification_file_contents)
+        notify(storage, args.verbose, args.trigger, notification_file_contents, args.workers)
     except ParseError as e:
         print(f"{e.loc}: {e}")
         return 1
@@ -92,7 +96,8 @@ def _parser_callback(args):
 
 
 def notify(storage: Storage, verbose_mode: bool, trigger_name_or_event: str,
-           notification_file_contents: typing.Optional[str]):
+           notification_file_contents: typing.Optional[str],
+           num_workers: int):
     if storage.exists("inputs"):
         inputs = yaml.safe_load(storage.read("inputs"))
     else:
@@ -116,6 +121,6 @@ def notify(storage: Storage, verbose_mode: bool, trigger_name_or_event: str,
                 raise DataError(f"The provided trigger or event name does not exist: {trigger_name_or_event}.")
 
         topology = Topology.instantiate(template, storage)
-        topology.notify(verbose_mode, workdir, trigger_name_or_event, notification_file_contents)
+        topology.notify(verbose_mode, workdir, trigger_name_or_event, notification_file_contents, num_workers)
     else:
         print("There is no root_file in storage.")
